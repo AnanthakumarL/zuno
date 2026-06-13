@@ -6,10 +6,7 @@ const DeliveryManagement = sequelize.define('DeliveryManagement', {
   order_id: { type: DataTypes.UUID },
   tracking_number: { type: DataTypes.STRING(100) },
   delivery_date: { type: DataTypes.DATEONLY },
-  status: {
-    type: DataTypes.ENUM('pending', 'assigned', 'in_transit', 'delivered', 'failed'),
-    defaultValue: 'pending',
-  },
+  status: { type: DataTypes.STRING(20), defaultValue: 'pending' },
   contact_name: { type: DataTypes.STRING(255) },
   contact_phone: { type: DataTypes.STRING(50) },
   address: { type: DataTypes.TEXT },

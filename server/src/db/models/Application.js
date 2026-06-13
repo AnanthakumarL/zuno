@@ -10,7 +10,7 @@ const Application = sequelize.define('Application', {
   applicant_phone: { type: DataTypes.STRING(50) },
   message: { type: DataTypes.TEXT },
   resume_url: { type: DataTypes.TEXT },
-  status: { type: DataTypes.ENUM('pending', 'reviewed', 'accepted', 'rejected'), defaultValue: 'pending' },
+  status: { type: DataTypes.STRING(20), defaultValue: 'pending' },
   attributes: { type: DataTypes.JSON },
 }, { tableName: 'applications' });
 
