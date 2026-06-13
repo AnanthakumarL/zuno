@@ -53,7 +53,11 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Simple ping — always 200, no DB check
-app.get('/ping', (_req, res) => res.json({ ok: true }));
+app.get('/ping', (_req, res) => {
+  const dbUrl = process.env.DATABASE_URL;
+  const dbHost = dbUrl ? new URL(dbUrl).hostname : null;
+  res.json({ ok: true, dbHost, hasUrl: !!dbUrl });
+});
 
 // Main API v1
 app.use('/api/v1/health', healthRouter);
