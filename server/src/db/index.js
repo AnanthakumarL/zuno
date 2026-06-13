@@ -4,8 +4,15 @@ import { config } from '../config.js';
 const isPostgres = config.db.url?.startsWith('postgres') || config.db.dialect === 'postgres';
 const dialect = isPostgres ? 'postgres' : 'mariadb';
 
-export const sequelize = config.db.url
-  ? new Sequelize(config.db.url, {
+// Render's "-internal" hostname hits the public endpoint but breaks the TLS
+// cert match (handshake terminates). Rewrite to the standard external host,
+// which same-region Render services can reach and whose cert matches.
+const dbUrl = config.db.url
+  ? config.db.url.replace('-internal.', '.')
+  : null;
+
+export const sequelize = dbUrl
+  ? new Sequelize(dbUrl, {
       dialect: 'postgres',
       dialectOptions: { ssl: { require: true, rejectUnauthorized: false } },
       logging: false,
@@ -31,8 +38,8 @@ export const sequelize = config.db.url
     });
 
 export async function connectDB(retries = 8, delayMs = 3000) {
-  console.log(`[DB] Using dialect: ${config.db.url ? 'postgres (URL)' : 'mariadb (host)'}`);
-  if (config.db.url) console.log(`[DB] URL host: ${config.db.url.replace(/:([^@]+)@/, ':***@')}`);
+  console.log(`[DB] Using dialect: ${dbUrl ? 'postgres (URL)' : 'mariadb (host)'}`);
+  if (dbUrl) console.log(`[DB] URL host: ${dbUrl.replace(/:([^@]+)@/, ':***@')}`);
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       await sequelize.authenticate();
