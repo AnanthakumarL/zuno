@@ -4,17 +4,26 @@ import { config } from '../config.js';
 const isPostgres = config.db.url?.startsWith('postgres') || config.db.dialect === 'postgres';
 const dialect = isPostgres ? 'postgres' : 'mariadb';
 
-// Render's "-internal" hostname hits the public endpoint but breaks the TLS
-// cert match (handshake terminates). Rewrite to the standard external host,
-// which same-region Render services can reach and whose cert matches.
+// Render's true internal hostname is the short "dpg-xxxx-a" form, reachable on
+// the private network from same-region services WITHOUT SSL. The
+// "-internal.<region>-postgres.render.com" / ".<region>-postgres.render.com"
+// variants route through the PUBLIC endpoint, where free-tier "external traffic
+// not allowed" drops the socket ("Connection terminated unexpectedly"). Strip
+// the domain so we use the private network.
 const dbUrl = config.db.url
-  ? config.db.url.replace('-internal.', '.')
+  ? config.db.url.replace(/(@dpg-[a-z0-9]+-a)(-internal)?\.[a-z0-9-]+-postgres\.render\.com/i, '$1')
   : null;
+
+// SSL is required for public endpoints (host ends in render.com) but not for
+// the private internal network (short host).
+const pgSsl = dbUrl && /\.render\.com/i.test(dbUrl)
+  ? { ssl: { require: true, rejectUnauthorized: false } }
+  : {};
 
 export const sequelize = dbUrl
   ? new Sequelize(dbUrl, {
       dialect: 'postgres',
-      dialectOptions: { ssl: { require: true, rejectUnauthorized: false } },
+      dialectOptions: pgSsl,
       logging: false,
       pool: { max: 10, min: 0, acquire: 30000, idle: 10000 },
       define: { timestamps: true, underscored: true, createdAt: 'created_at', updatedAt: 'updated_at' },
