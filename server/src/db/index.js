@@ -34,13 +34,13 @@ export async function connectDB(retries = 8, delayMs = 3000) {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       await sequelize.authenticate();
-      console.log('MariaDB connected.');
-      await sequelize.sync({ alter: { drop: false } });
+      console.log('DB connected.');
+      await sequelize.sync({ force: false });
       console.log('All models synced.');
       return;
     } catch (err) {
+      console.error(`[DB] Attempt ${attempt}/${retries} failed: ${err.message}`);
       if (attempt < retries) {
-        console.log(`[DB] Connection failed (attempt ${attempt}/${retries}). Retrying in ${delayMs / 1000}s...`);
         await new Promise(r => setTimeout(r, delayMs));
       } else {
         throw err;
