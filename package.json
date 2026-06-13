@@ -1,0 +1,9 @@
+{
+  "name": "zuno",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "npm install --prefix Client && npm run build --prefix Client && npm install --prefix Admin && npm run build --prefix Admin && npm install --prefix server",
+    "start": "node server/src/index.js"
+  }
+}
