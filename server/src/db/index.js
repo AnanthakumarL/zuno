@@ -31,6 +31,8 @@ export const sequelize = config.db.url
     });
 
 export async function connectDB(retries = 8, delayMs = 3000) {
+  console.log(`[DB] Using dialect: ${config.db.url ? 'postgres (URL)' : 'mariadb (host)'}`);
+  if (config.db.url) console.log(`[DB] URL host: ${config.db.url.replace(/:([^@]+)@/, ':***@')}`);
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       await sequelize.authenticate();
