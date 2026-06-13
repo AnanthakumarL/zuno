@@ -7,7 +7,7 @@ const dialect = isPostgres ? 'postgres' : 'mariadb';
 export const sequelize = config.db.url
   ? new Sequelize(config.db.url, {
       dialect: 'postgres',
-      dialectOptions: {},
+      dialectOptions: { ssl: { require: true, rejectUnauthorized: false } },
       logging: false,
       pool: { max: 10, min: 0, acquire: 30000, idle: 10000 },
       define: { timestamps: true, underscored: true, createdAt: 'created_at', updatedAt: 'updated_at' },
