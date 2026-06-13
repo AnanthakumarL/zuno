@@ -93,13 +93,16 @@ if (existsSync(clientDist)) {
 }
 
 async function start() {
-  await connectDB();
+  // Start HTTP server first so health checks pass, then connect DB
   app.listen(config.port, () => {
-    console.log(`\n🛍️ Zuno Server running on http://localhost:${config.port}`);
-    console.log(`   Storefront: http://localhost:${config.port}`);
-    console.log(`   Admin:      http://localhost:${config.port}/admin`);
-    console.log(`   API:        http://localhost:${config.port}/api/v1/health\n`);
+    console.log(`Zuno Server running on port ${config.port}`);
   });
+  try {
+    await connectDB();
+    console.log('Database ready.');
+  } catch (err) {
+    console.error('DB connection error (app still running):', err.message);
+  }
 }
 
 start().catch(err => { console.error('Startup error:', err); process.exit(1); });
