@@ -4,12 +4,10 @@ import { config } from '../config.js';
 const isPostgres = config.db.url?.startsWith('postgres') || config.db.dialect === 'postgres';
 const dialect = isPostgres ? 'postgres' : 'mariadb';
 
-const isInternalUrl = (config.db.url || '').includes('-internal.');
-
 export const sequelize = config.db.url
   ? new Sequelize(config.db.url, {
       dialect: 'postgres',
-      dialectOptions: isInternalUrl ? {} : { ssl: { require: true, rejectUnauthorized: false } },
+      dialectOptions: {},
       logging: false,
       pool: { max: 10, min: 0, acquire: 30000, idle: 10000 },
       define: { timestamps: true, underscored: true, createdAt: 'created_at', updatedAt: 'updated_at' },
