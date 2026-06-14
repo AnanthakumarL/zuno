@@ -15,13 +15,10 @@ export const SEED_TAG = 'electronics';
 export const DEFAULT_WARRANTY = '1-year manufacturer warranty · 7-day replacement · 30-day returns';
 export const APPLIANCE_WARRANTY = '2-year comprehensive warranty (extended on compressor/panel) · easy returns';
 
-// Premium offer price strictly from the price band.
+// Premium offer price — only two tiers: ₹99 for budget items, ₹199 for pricier.
+export const PREMIUM_THRESHOLD = 1999;
 export function premiumFor(price) {
-  if (price <= 999)   return 99;
-  if (price <= 2999)  return 199;
-  if (price <= 7999)  return 299;
-  if (price <= 24999) return 499;
-  return 999;
+  return Number(price) <= PREMIUM_THRESHOLD ? 99 : 199;
 }
 
 export const slugify = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
