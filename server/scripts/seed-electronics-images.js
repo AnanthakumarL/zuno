@@ -1,6 +1,11 @@
 // Fetch a real photo for every seeded electronics product and UPLOAD it into the
 // store's database (stored as a BLOB, served from /api/v1/products/:id/image).
 //
+// Goals:
+//   • UNIQUE image per product  — never reuse the same stock photo twice.
+//   • CLEAN background          — bias the search to isolated / white-background
+//                                 product shots (square), with fallbacks.
+//
 // Photos come from a free stock-photo API — Pexels or Pixabay. Get a free key:
 //   • Pexels:  https://www.pexels.com/api/   (header auth)
 //   • Pixabay: https://pixabay.com/api/docs/ (key in query)
@@ -9,16 +14,17 @@
 //   $env:PEXELS_KEY="your_key";  node scripts/seed-electronics-images.js https://zuno-stke.onrender.com
 //   $env:PIXABAY_KEY="your_key"; node scripts/seed-electronics-images.js https://zuno-stke.onrender.com
 //
-// Usage (bash):
-//   PEXELS_KEY=your_key  node scripts/seed-electronics-images.js https://zuno-stke.onrender.com
-//
 // Options:
-//   FORCE=true   re-upload even for products that already have an image
-//   ONLY=mobiles,laptops   limit to certain category slugs (product_type)
+//   FORCE=true              re-assign all images fresh (ignore previous run)
+//   ONLY=mobiles,laptops    limit to certain category slugs (product_type)
 //
-// Idempotent: by default skips products that already have an image_url.
+// Resumable: stores the chosen photo id (attributes.img_pexels_id) and a version
+// flag (attributes.img_v=2). A normal re-run skips products already done and keeps
+// every image globally unique.
 
 import { SEED_TAG } from './electronics-data.js';
+
+const IMG_VERSION = 2;
 
 const rawBase = process.argv[2] || process.env.API_URL || process.env.BASE_URL;
 if (!rawBase) {
@@ -42,6 +48,7 @@ if (!PROVIDER) {
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const enc = encodeURIComponent;
 
 // ── Fetch the live product list (paged) ───────────────────────────────────────
 async function getAllProducts() {
@@ -61,25 +68,57 @@ async function getAllProducts() {
   return all;
 }
 
-// ── Find a photo URL for a search query ───────────────────────────────────────
-async function findPhotoUrl(query) {
+// ── Search photos → returns [{ id, url }] (cached per query string) ────────────
+const searchCache = new Map();
+async function searchPhotos(query, square) {
+  const cacheKey = `${square ? 's' : 'a'}:${query}`;
+  if (searchCache.has(cacheKey)) return searchCache.get(cacheKey);
+
+  let list = [];
   if (PROVIDER === 'pexels') {
-    const url = `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=3&orientation=square`;
+    const url = `https://api.pexels.com/v1/search?query=${enc(query)}&per_page=80${square ? '&orientation=square' : ''}`;
     const res = await fetch(url, { headers: { Authorization: PEXELS_KEY } });
     if (res.status === 429) throw new Error('RATE_LIMIT');
-    if (!res.ok) return null;
-    const data = await res.json();
-    const photo = data?.photos?.[0];
-    return photo?.src?.large || photo?.src?.medium || photo?.src?.original || null;
+    if (res.ok) {
+      const data = await res.json();
+      list = (data?.photos || []).map((p) => ({ id: `px${p.id}`, url: p.src?.large || p.src?.medium || p.src?.original }));
+    }
+  } else {
+    const url = `https://pixabay.com/api/?key=${PIXABAY_KEY}&q=${enc(query)}&image_type=photo&per_page=80&safesearch=true`;
+    const res = await fetch(url);
+    if (res.status === 429) throw new Error('RATE_LIMIT');
+    if (res.ok) {
+      const data = await res.json();
+      list = (data?.hits || []).map((h) => ({ id: `pb${h.id}`, url: h.largeImageURL || h.webformatURL }));
+    }
   }
-  // pixabay
-  const url = `https://pixabay.com/api/?key=${PIXABAY_KEY}&q=${encodeURIComponent(query)}&image_type=photo&per_page=3&safesearch=true`;
-  const res = await fetch(url);
-  if (res.status === 429) throw new Error('RATE_LIMIT');
-  if (!res.ok) return null;
-  const data = await res.json();
-  const hit = data?.hits?.[0];
-  return hit?.largeImageURL || hit?.webformatURL || null;
+  list = list.filter((x) => x.url);
+  searchCache.set(cacheKey, list);
+  return list;
+}
+
+// ── Pick a unique, clean-background photo for a product ────────────────────────
+async function pickPhoto(product, usedIds) {
+  const attrs = product.attributes || {};
+  const q = attrs.image_query || String(product.product_type || '').replace(/-/g, ' ');
+  const pt = String(product.product_type || '').replace(/-/g, ' ');
+
+  // Ordered attempts: prefer clean white-background square shots, widen if needed.
+  const attempts = [
+    { q: `${q} white background`, square: true },
+    { q: `${q} white background`, square: false },
+    { q: `${q} isolated`,         square: true },
+    { q: `${q}`,                  square: true },
+    { q: `${pt} white background`, square: true },
+    { q: `${q}`,                  square: false },
+  ];
+
+  for (const a of attempts) {
+    const list = await searchPhotos(a.q, a.square);
+    const found = list.find((c) => !usedIds.has(c.id));
+    if (found) return found;
+  }
+  return null;
 }
 
 // ── Download image bytes ──────────────────────────────────────────────────────
@@ -92,7 +131,7 @@ async function downloadImage(url) {
   return { buf, type };
 }
 
-// ── Upload one image to a product ─────────────────────────────────────────────
+// ── Upload image + record the chosen photo id (for uniqueness on re-runs) ──────
 async function uploadImage(productId, buf, type) {
   const ext = type.includes('png') ? 'png' : 'jpg';
   const form = new FormData();
@@ -102,68 +141,77 @@ async function uploadImage(productId, buf, type) {
     const text = await res.text().catch(() => '');
     throw new Error(`upload → ${res.status} ${text.slice(0, 120)}`);
   }
-  return true;
+}
+
+async function markDone(product, photoId) {
+  const attributes = { ...(product.attributes || {}), img_pexels_id: photoId, img_v: IMG_VERSION };
+  await fetch(`${API}/products/${product.id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ attributes }),
+  });
 }
 
 async function run() {
   console.log(`Target API : ${API}`);
-  console.log(`Provider   : ${PROVIDER}${FORCE ? ' (FORCE re-upload)' : ''}`);
+  console.log(`Provider   : ${PROVIDER}${FORCE ? ' (FORCE — reassign all)' : ''}`);
   if (ONLY.length) console.log(`Only       : ${ONLY.join(', ')}`);
 
   const products = await getAllProducts();
   let seeded = products.filter((p) => (p.attributes || {}).seed === SEED_TAG);
   if (ONLY.length) seeded = seeded.filter((p) => ONLY.includes(p.product_type));
-  console.log(`\nSeeded electronics products: ${seeded.length}\n`);
 
-  let done = 0, skipped = 0, failed = 0;
+  // Global set of already-used photo ids so images never repeat (across re-runs too).
+  const usedIds = new Set();
+  if (!FORCE) {
+    for (const p of seeded) {
+      const id = (p.attributes || {}).img_pexels_id;
+      if (id) usedIds.add(id);
+    }
+  }
 
-  for (const p of seeded) {
-    if (!FORCE && p.image_url) { skipped += 1; continue; }
+  // What still needs an image this run.
+  const todo = FORCE ? seeded : seeded.filter((p) => (p.attributes || {}).img_v !== IMG_VERSION);
+  console.log(`\nSeeded products: ${seeded.length} · to process: ${todo.length} · already done: ${seeded.length - todo.length}\n`);
 
-    const attrs = p.attributes || {};
-    const queries = [
-      attrs.image_query,
-      String(p.product_type || '').replace(/-/g, ' '),
-      'electronics device',
-    ].filter(Boolean);
+  let done = 0, failed = 0, rateLimited = false;
 
-    let photoUrl = null;
+  for (const p of todo) {
+    let photo = null;
     try {
-      for (const q of queries) {
-        photoUrl = await findPhotoUrl(q);
-        if (photoUrl) break;
-        await sleep(150);
-      }
+      photo = await pickPhoto(p, usedIds);
     } catch (err) {
-      if (err.message === 'RATE_LIMIT') {
-        console.error('  Rate limited by the photo API — wait a bit and re-run (already-done items are skipped).');
-        break;
-      }
+      if (err.message === 'RATE_LIMIT') { rateLimited = true; break; }
       throw err;
     }
 
-    if (!photoUrl) {
-      console.warn(`  ✗ no photo found for "${p.name}" (${queries[0]})`);
+    if (!photo) {
+      console.warn(`  ✗ no unused photo for "${p.name}"`);
       failed += 1;
       continue;
     }
 
     try {
-      const img = await downloadImage(photoUrl);
+      const img = await downloadImage(photo.url);
       if (!img) { console.warn(`  ✗ download failed/too big for "${p.name}"`); failed += 1; continue; }
       await uploadImage(p.id, img.buf, img.type);
+      await markDone(p, photo.id);
+      usedIds.add(photo.id);
       done += 1;
-      console.log(`  ✓ ${done}. ${p.name}`);
+      console.log(`  ✓ ${done}. ${p.name}  [${photo.id}]`);
     } catch (err) {
       console.warn(`  ✗ ${p.name}: ${err.message}`);
       failed += 1;
     }
 
-    await sleep(250); // be gentle on both APIs
+    await sleep(250);
   }
 
-  console.log(`\nDone. Uploaded ${done}, skipped ${skipped} (already had image), failed ${failed}.`);
-  if (failed) console.log('Re-run to retry failures (set FORCE=true to also replace existing images).');
+  if (rateLimited) {
+    console.log('\n⏳ Rate limited by the photo API. Wait ~30–60 min and re-run — finished items are skipped and uniqueness is preserved.');
+  }
+  console.log(`\nDone. Uploaded ${done}, failed ${failed}, remaining ${todo.length - done - failed}.`);
+  console.log(`Unique photos used so far: ${usedIds.size}.`);
 }
 
 run().catch((err) => { console.error('Failed:', err.message); process.exit(1); });
