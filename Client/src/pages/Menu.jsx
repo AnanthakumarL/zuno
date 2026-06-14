@@ -1,9 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Search, X } from 'lucide-react'
+import { ChevronDown, Search, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { fetchRealtimeCatalog } from '../services/realtimeCatalog'
 import ProductCard from '../components/ProductCard'
+
+const VISIBLE_CATS = 5 // "All" + 4 category tabs; rest go into "More" dropdown
 
 const sortOptions = [
   { value: 'popular',    label: 'Most Popular' },
@@ -22,6 +24,8 @@ export default function Menu() {
   const [categories, setCategories] = useState([{ id: 'all', label: 'All' }])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [moreOpen, setMoreOpen] = useState(false)
+  const moreRef = useRef(null)
 
   const activeCategory = searchParams.get('category') || 'all'
 
@@ -55,8 +59,16 @@ export default function Menu() {
   const setCategory = (cat) => {
     if (cat === 'all') setSearchParams({})
     else setSearchParams({ category: cat })
+    setMoreOpen(false)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
+
+  // Close "More" dropdown when clicking outside
+  useEffect(() => {
+    const handler = (e) => { if (moreRef.current && !moreRef.current.contains(e.target)) setMoreOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   const filtered = useMemo(() => {
     let list = [...products]
@@ -108,22 +120,64 @@ export default function Menu() {
           </select>
         </div>
 
-        {/* Category tabs */}
-        <div className="flex gap-2 flex-wrap mb-8">
-          {categories.map(cat => (
-            <button
-              key={cat.id}
-              onClick={() => setCategory(cat.id)}
-              className={`px-4 py-2 rounded-full text-sm font-medium font-body transition-all duration-200 ${
-                activeCategory === cat.id
-                  ? 'bg-olive-700 text-white shadow-md'
-                  : 'bg-white text-stone-600 border border-stone-200 hover:border-stone-400'
-              }`}
-            >
-              {cat.label}
-            </button>
-          ))}
-        </div>
+        {/* Category tabs — show first VISIBLE_CATS, rest in "More" dropdown */}
+        {(() => {
+          const visible = categories.slice(0, VISIBLE_CATS)
+          const hidden  = categories.slice(VISIBLE_CATS)
+          const activeInHidden = hidden.some(c => c.id === activeCategory)
+          return (
+            <div className="flex gap-2 flex-wrap mb-8 items-center">
+              {visible.map(cat => (
+                <button
+                  key={cat.id}
+                  onClick={() => setCategory(cat.id)}
+                  className={`px-4 py-2 rounded-full text-sm font-medium font-body transition-all duration-200 ${
+                    activeCategory === cat.id
+                      ? 'bg-olive-700 text-white shadow-md'
+                      : 'bg-white text-stone-600 border border-stone-200 hover:border-stone-400'
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+
+              {hidden.length > 0 && (
+                <div className="relative" ref={moreRef}>
+                  <button
+                    onClick={() => setMoreOpen(o => !o)}
+                    className={`inline-flex items-center gap-1 px-4 py-2 rounded-full text-sm font-medium font-body transition-all duration-200 ${
+                      activeInHidden
+                        ? 'bg-olive-700 text-white shadow-md'
+                        : 'bg-white text-stone-600 border border-stone-200 hover:border-stone-400'
+                    }`}
+                  >
+                    {activeInHidden
+                      ? categories.find(c => c.id === activeCategory)?.label
+                      : 'More'}
+                    <ChevronDown size={14} className={`transition-transform ${moreOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {moreOpen && (
+                    <div className="absolute left-0 top-full mt-2 bg-white border border-stone-200 rounded-xl shadow-lg z-20 min-w-[160px] py-1">
+                      {hidden.map(cat => (
+                        <button
+                          key={cat.id}
+                          onClick={() => setCategory(cat.id)}
+                          className={`w-full text-left px-4 py-2 text-sm font-medium transition-colors ${
+                            activeCategory === cat.id
+                              ? 'text-olive-700 bg-olive-50'
+                              : 'text-stone-600 hover:bg-stone-50'
+                          }`}
+                        >
+                          {cat.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })()}
 
         {error && <p className="text-sm text-rose-600 mb-4">{error}</p>}
 
