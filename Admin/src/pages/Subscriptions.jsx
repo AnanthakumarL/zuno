@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Crown, Users, IndianRupee, CalendarDays, RefreshCw, TrendingUp } from 'lucide-react';
+import { Crown, Users, IndianRupee, CalendarDays, RefreshCw, TrendingUp, Clock, BadgeCheck, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 
@@ -32,6 +32,7 @@ const PLAN_BADGE = {
 export default function Subscriptions() {
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
+  const [actingId, setActingId] = useState(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -48,6 +49,44 @@ export default function Subscriptions() {
 
   useEffect(() => { fetchData(); }, []);
 
+  // Admin confirms the payment manually → activate Premium for the account.
+  const markPaid = async (accountId) => {
+    setActingId(accountId);
+    try {
+      const res = await fetch(`${API_BASE_URL}/payments/activate-premium`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account_id: accountId }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      toast.success('Premium activated for member');
+      await fetchData();
+    } catch {
+      toast.error('Could not activate premium');
+    } finally {
+      setActingId(null);
+    }
+  };
+
+  // Dismiss a pending request that couldn't be verified.
+  const dismissPending = async (accountId) => {
+    setActingId(accountId);
+    try {
+      const res = await fetch(`${API_BASE_URL}/payments/reject-premium`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account_id: accountId }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      toast.success('Request dismissed');
+      await fetchData();
+    } catch {
+      toast.error('Could not dismiss request');
+    } finally {
+      setActingId(null);
+    }
+  };
+
   const fmt = (n) => n?.toLocaleString('en-IN') ?? '—';
   const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
@@ -59,7 +98,7 @@ export default function Subscriptions() {
     );
   }
 
-  const { total = 0, totalAmount = 0, monthly = 0, annual = 0, subscribers = [] } = data || {};
+  const { total = 0, totalAmount = 0, monthly = 0, annual = 0, subscribers = [], pending = [] } = data || {};
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -114,6 +153,83 @@ export default function Subscriptions() {
           color="bg-amber-100 text-amber-700"
         />
       </div>
+
+      {/* Pending verification — members who paid and await manual confirmation */}
+      {pending.length > 0 && (
+        <div className="bg-white rounded-2xl border border-amber-200 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-amber-100 bg-amber-50 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Clock className="w-5 h-5 text-amber-600" />
+              <h2 className="text-lg font-bold text-dark-900">Pending Verification</h2>
+            </div>
+            <span className="text-sm font-medium text-amber-700">{pending.length} awaiting</span>
+          </div>
+          <p className="px-6 pt-3 text-sm text-dark-500">
+            These members paid and are waiting for manual confirmation. Verify the payment in your
+            Razorpay dashboard, then click <strong>Mark Paid</strong> to activate Premium.
+          </p>
+          <div className="overflow-x-auto p-2">
+            <table className="w-full text-sm">
+              <thead className="text-dark-500 text-xs uppercase tracking-wide">
+                <tr>
+                  <th className="px-4 py-3 text-left font-semibold">Member</th>
+                  <th className="px-4 py-3 text-left font-semibold">Phone</th>
+                  <th className="px-4 py-3 text-left font-semibold">Plan</th>
+                  <th className="px-4 py-3 text-left font-semibold">Amount</th>
+                  <th className="px-4 py-3 text-left font-semibold">Payment ID</th>
+                  <th className="px-4 py-3 text-left font-semibold">Requested</th>
+                  <th className="px-4 py-3 text-right font-semibold">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-dark-100">
+                {pending.map((p) => (
+                  <tr key={p.id} className="hover:bg-amber-50/40 transition-colors">
+                    <td className="px-4 py-3">
+                      <p className="font-semibold text-dark-900">{p.name || '—'}</p>
+                      {p.email && <p className="text-xs text-dark-400">{p.email}</p>}
+                    </td>
+                    <td className="px-4 py-3 text-dark-600">{p.phone || '—'}</td>
+                    <td className="px-4 py-3">
+                      {p.plan ? (
+                        <span className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full border capitalize ${PLAN_BADGE[p.plan] || 'bg-dark-100 text-dark-600 border-dark-200'}`}>
+                          {p.plan}
+                        </span>
+                      ) : <span className="text-dark-400 text-xs">—</span>}
+                    </td>
+                    <td className="px-4 py-3 font-semibold text-dark-900">
+                      {p.amount ? `₹${fmt(p.amount)}` : <span className="text-dark-400 font-normal text-xs">—</span>}
+                    </td>
+                    <td className="px-4 py-3">
+                      {p.payment_id ? (
+                        <span className="font-mono text-xs text-dark-500 bg-dark-100 px-2 py-1 rounded break-all">{p.payment_id}</span>
+                      ) : <span className="text-dark-400 text-xs">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-dark-600">{fmtDate(p.requested_at)}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => markPaid(p.id)}
+                          disabled={actingId === p.id}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold transition-colors"
+                        >
+                          <BadgeCheck className="w-4 h-4" /> Mark Paid
+                        </button>
+                        <button
+                          onClick={() => dismissPending(p.id)}
+                          disabled={actingId === p.id}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-dark-200 text-dark-500 hover:bg-dark-50 disabled:opacity-50 text-xs font-medium transition-colors"
+                        >
+                          <X className="w-4 h-4" /> Dismiss
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Subscribers table */}
       <div className="bg-white rounded-2xl border border-dark-100 shadow-sm overflow-hidden">

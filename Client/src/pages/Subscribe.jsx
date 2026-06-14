@@ -6,6 +6,7 @@ import {
   Bell, Check, ChevronDown, ChevronUp, ArrowRight, Sparkles,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { useCart } from '../context/CartContext'
 import toast from 'react-hot-toast'
 
 // Razorpay hosted payment link for Premium Monthly (₹99/month)
@@ -67,7 +68,7 @@ const benefits = [
   },
 ]
 
-const plans = [
+const makePlans = (threshold) => [
   {
     id: 'free',
     label: 'Free',
@@ -77,7 +78,7 @@ const plans = [
     badge: null,
     features: [
       'Shop across all categories',
-      'Free delivery on orders over ₹999',
+      `Free delivery on orders over ₹${threshold}`,
       '5-day easy returns',
       'Order tracking',
       'Wishlist',
@@ -132,14 +133,14 @@ const plans = [
   },
 ]
 
-const faqs = [
+const makeFaqs = (threshold) => [
   {
     q: 'When does pre-sale access start?',
     a: 'As a Premium member you get access to sale events and new product drops 24 hours before they go live for all shoppers. You will receive an email notification as soon as the early window opens.',
   },
   {
     q: 'Is delivery really free on every order?',
-    a: 'Yes — Premium members get free delivery on every order regardless of value. Free members get free delivery on orders over ₹999.',
+    a: `Yes — Premium members get free delivery on every order regardless of value. Free members get free delivery on orders over ₹${threshold}.`,
   },
   {
     q: 'Can I cancel at any time?',
@@ -238,6 +239,9 @@ function PlanCard({ plan, isPremium, onSubscribeClick }) {
 
 export default function Subscribe() {
   const { isAuthenticated, isPremium } = useAuth()
+  const { freeDeliveryThreshold } = useCart()
+  const plans = makePlans(freeDeliveryThreshold)
+  const faqs = makeFaqs(freeDeliveryThreshold)
   const navigate = useNavigate()
 
   function handleSubscribeClick(plan) {

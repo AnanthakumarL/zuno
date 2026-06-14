@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
-import { useSearchParams, Link, useNavigate } from 'react-router-dom'
+import { useSearchParams, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Crown, CheckCircle2, AlertCircle, RefreshCw, LogIn } from 'lucide-react'
+import { Clock, AlertCircle, RefreshCw, LogIn } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
 const API_BASE_URL = (() => {
@@ -15,13 +15,12 @@ const API_BASE_URL = (() => {
 export default function PremiumSuccess() {
   const [searchParams] = useSearchParams()
   const { user, updateUser, isAuthenticated } = useAuth()
-  const navigate = useNavigate()
 
   // Razorpay appends these to the callback URL after payment
   const paymentId  = searchParams.get('razorpay_payment_id')
   const linkStatus = searchParams.get('razorpay_payment_link_status')
 
-  const [status, setStatus] = useState('loading') // loading | success | error | login-required
+  const [status, setStatus] = useState('loading') // loading | pending | error | login-required
 
   useEffect(() => {
     // Payment link did not result in a paid status
@@ -42,14 +41,16 @@ export default function PremiumSuccess() {
       return
     }
 
-    const activate = async () => {
+    const submitRequest = async () => {
       try {
         let planInfo = {}
         try {
           const raw = localStorage.getItem('zuno_pending_plan')
           if (raw) { planInfo = JSON.parse(raw); localStorage.removeItem('zuno_pending_plan') }
         } catch {}
-        await fetch(`${API_BASE_URL}/payments/activate-premium`, {
+        // Premium is granted manually by an admin after they verify the payment,
+        // so here we only queue the request — we don't unlock benefits yet.
+        await fetch(`${API_BASE_URL}/payments/request-premium`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -59,17 +60,14 @@ export default function PremiumSuccess() {
             amount: planInfo.amount || null,
           }),
         })
-        updateUser({ attributes: { ...(user?.attributes || {}), is_premium: true } })
-        setStatus('success')
-
-        // Auto-redirect to shop after 4 seconds
-        setTimeout(() => navigate('/menu'), 4000)
+        updateUser({ attributes: { ...(user?.attributes || {}), premium_pending: true } })
+        setStatus('pending')
       } catch {
         setStatus('error')
       }
     }
 
-    activate()
+    submitRequest()
   }, [paymentId, linkStatus, isAuthenticated])
 
   return (
@@ -88,47 +86,45 @@ export default function PremiumSuccess() {
               <div className="w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center mx-auto mb-4">
                 <RefreshCw size={30} className="text-white animate-spin" />
               </div>
-              <h1 className="text-white font-display text-2xl font-bold">Activating Premium…</h1>
+              <h1 className="text-white font-display text-2xl font-bold">Recording your payment…</h1>
               <p className="text-amber-100 text-sm mt-2">Please wait a moment.</p>
             </div>
             <div className="-mt-6 bg-white rounded-t-3xl px-8 py-8 text-center">
-              <p className="text-stone-500 text-sm">We're confirming your payment and unlocking your benefits.</p>
+              <p className="text-stone-500 text-sm">We're noting down your payment for verification.</p>
             </div>
           </>
         )}
 
-        {/* Success */}
-        {status === 'success' && (
+        {/* Pending manual verification */}
+        {status === 'pending' && (
           <>
             <div className="bg-gradient-to-br from-amber-400 to-amber-600 px-8 pt-10 pb-14 text-center">
               <div className="w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center mx-auto mb-4">
-                <Crown size={30} className="text-white" />
+                <Clock size={30} className="text-white" />
               </div>
-              <h1 className="text-white font-display text-2xl font-bold mb-1">Welcome to Premium!</h1>
-              <p className="text-amber-100 text-sm">Your membership is now active.</p>
+              <h1 className="text-white font-display text-2xl font-bold mb-1">Payment received!</h1>
+              <p className="text-amber-100 text-sm">We're verifying your payment.</p>
             </div>
-            <div className="-mt-6 bg-white rounded-t-3xl px-8 py-8">
-              <div className="space-y-3 mb-8">
-                {[
-                  'Members-only deal prices on products',
-                  'Free delivery on every order',
-                  '24h early access to every sale',
-                  '15-day easy returns',
-                  'Priority customer support',
-                ].map(b => (
-                  <div key={b} className="flex items-center gap-2 text-sm text-stone-700">
-                    <CheckCircle2 size={15} className="text-emerald-500 shrink-0" />
-                    {b}
-                  </div>
-                ))}
-              </div>
+            <div className="-mt-6 bg-white rounded-t-3xl px-8 py-8 text-center">
+              <p className="text-stone-800 font-semibold mb-2">
+                Please wait a little while — your payment will be confirmed soon.
+              </p>
+              <p className="text-stone-500 text-sm leading-relaxed mb-6">
+                It usually takes about <span className="font-semibold text-stone-700">2–3 hours</span> to
+                confirm your payment and activate your Premium membership. Your benefits will unlock
+                automatically once it's verified — no need to pay again.
+              </p>
+              {paymentId && (
+                <p className="text-center font-mono text-xs bg-stone-100 rounded-lg px-3 py-2 text-stone-600 mb-6 break-all">
+                  Payment ID: {paymentId}
+                </p>
+              )}
               <Link
                 to="/menu"
-                className="flex items-center justify-center gap-2 w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold py-3.5 rounded-xl transition-colors"
+                className="flex items-center justify-center gap-2 w-full bg-stone-900 hover:bg-stone-700 text-white font-semibold py-3.5 rounded-xl transition-colors"
               >
-                <Crown size={16} /> Start shopping as Premium
+                Continue shopping
               </Link>
-              <p className="text-xs text-stone-400 text-center mt-3">Redirecting to shop automatically…</p>
             </div>
           </>
         )}

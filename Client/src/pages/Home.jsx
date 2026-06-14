@@ -5,6 +5,7 @@ import {
   ArrowRight, Leaf, Truck, Award, RefreshCw,
 } from 'lucide-react'
 import { fetchRealtimeCatalog } from '../services/realtimeCatalog'
+import { useCart } from '../context/CartContext'
 import ProductCard from '../components/ProductCard'
 
 /* ─── Fade-up wrapper ─── */
@@ -24,14 +25,16 @@ function FadeUp({ children, delay = 0, className = '' }) {
   )
 }
 
-const perks = [
+const makePerks = (threshold) => [
   { icon: Award,     title: 'Genuine Products',    desc: '100% authentic items sourced from trusted brands and sellers.' },
   { icon: Leaf,      title: 'Best Prices',         desc: 'Honest, everyday low prices with regular deals and offers.' },
-  { icon: Truck,     title: 'Fast, Free Delivery', desc: 'Complimentary delivery across India on every order over ₹999.' },
+  { icon: Truck,     title: 'Fast, Free Delivery', desc: `Complimentary delivery across India on every order over ₹${threshold}.` },
   { icon: RefreshCw, title: 'Easy 5-Day Returns',  desc: 'Changed your mind? Return or replace within 5 days, no questions asked.' },
 ]
 
 export default function Home() {
+  const { freeDeliveryThreshold } = useCart()
+  const perks = makePerks(freeDeliveryThreshold)
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
   // Signature of the last applied catalog — lets the 30s poll skip a state
@@ -90,9 +93,9 @@ export default function Home() {
   }, [products, bestsellers])
 
   const marqueeItems = useMemo(() => {
-    if (!products.length) return ['New Arrivals', 'Free delivery over ₹999', 'Genuine products', 'Easy 5-day returns']
+    if (!products.length) return ['New Arrivals', `Free delivery over ₹${freeDeliveryThreshold}`, 'Genuine products', 'Easy 5-day returns']
     return products.slice(0, 10).map(p => p.name)
-  }, [products])
+  }, [products, freeDeliveryThreshold])
 
   return (
     <div className="min-h-screen bg-[#F9F8F6]">
@@ -220,7 +223,7 @@ export default function Home() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-2 sm:grid-cols-4 divide-x divide-stone-100">
             {[
               { value: '10,000+', label: 'Products listed' },
-              { value: '₹0',      label: 'Delivery on ₹999+' },
+              { value: '₹0',      label: `Delivery on ₹${freeDeliveryThreshold}+` },
               { value: '4.9 ★',   label: 'Avg. customer rating' },
               { value: '5-day',   label: 'Hassle-free returns' },
             ].map(s => (

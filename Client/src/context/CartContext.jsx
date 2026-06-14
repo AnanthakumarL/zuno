@@ -53,12 +53,43 @@ function cartReducer(state, action) {
   }
 }
 
+// Default delivery rules, used until the live site-config loads (or if it fails)
+const DEFAULT_DELIVERY = { charge: 400, threshold: 999 }
+
+function readNumber(value, fallback) {
+  if (value === '' || value === null || value === undefined) return fallback
+  const n = Number(value)
+  return Number.isFinite(n) ? n : fallback
+}
+
 export function CartProvider({ children }) {
   const [state, dispatch] = useReducer(cartReducer, { items: [] })
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [deliveryConfig, setDeliveryConfig] = useState(DEFAULT_DELIVERY)
   const { user } = useAuth()
   const saveTimerRef = useRef(null)
   const initialSyncDone = useRef(false)
+
+  // ── Load delivery charge / free-delivery threshold from admin site-config ──
+  // Refetched on window focus so changes saved in the admin panel show up
+  // without a full reload.
+  useEffect(() => {
+    const loadDeliveryConfig = () => {
+      fetch(`${API_BASE_URL}/site-config`)
+        .then(r => r.ok ? r.json() : null)
+        .then(cfg => {
+          const attrs = cfg?.attributes || {}
+          setDeliveryConfig({
+            charge:    readNumber(attrs.delivery_charge,          DEFAULT_DELIVERY.charge),
+            threshold: readNumber(attrs.free_shipping_threshold,  DEFAULT_DELIVERY.threshold),
+          })
+        })
+        .catch(() => {})
+    }
+    loadDeliveryConfig()
+    window.addEventListener('focus', loadDeliveryConfig)
+    return () => window.removeEventListener('focus', loadDeliveryConfig)
+  }, [])
 
   // ── Load cart from DB when user logs in ──────────────────────────────────
   useEffect(() => {
@@ -132,8 +163,8 @@ export function CartProvider({ children }) {
   const totalItems = state.items.reduce((s, i) => s + i.quantity, 0)
   const subtotal   = state.items.reduce((s, i) => s + i.price * i.quantity, 0)
 
-  const FREE_THRESHOLD = 999
-  const DELIVERY_CHARGE = 400
+  const FREE_THRESHOLD = deliveryConfig.threshold
+  const DELIVERY_CHARGE = deliveryConfig.charge
 
   const isFreeDelivery = subtotal >= FREE_THRESHOLD
   const delivery = isFreeDelivery ? 0 : DELIVERY_CHARGE
@@ -146,6 +177,7 @@ export function CartProvider({ children }) {
         items: state.items, addItem, removeItem, updateQty, clearCart,
         totalItems, subtotal, delivery, total,
         isFreeDelivery, amountForFreeDelivery,
+        freeDeliveryThreshold: FREE_THRESHOLD, deliveryCharge: DELIVERY_CHARGE,
         sidebarOpen, setSidebarOpen,
       }}
     >

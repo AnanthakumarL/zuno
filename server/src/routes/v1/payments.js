@@ -171,6 +171,38 @@ router.get('/static-qr-check/:order_id', async (req, res, next) => {
 
 // ── Activate Premium ─────────────────────────────────────────────────────────
 
+// Record a premium payment that needs manual verification by an admin.
+// This does NOT grant premium — it just queues the account for review.
+router.post('/request-premium', async (req, res, next) => {
+  try {
+    const { account_id, razorpay_payment_id, plan, amount } = req.body;
+    if (!account_id) return res.status(400).json({ message: 'account_id required' });
+
+    const account = await Account.findByPk(account_id);
+    if (!account) return res.status(404).json({ message: 'Account not found' });
+
+    const attrs = account.attributes || {};
+    // Already a premium member — nothing to queue.
+    if (attrs.is_premium) return res.json({ success: true, already_premium: true, account });
+
+    await account.update({
+      attributes: {
+        ...attrs,
+        premium_pending: true,
+        premium_requested_at: new Date().toISOString(),
+        premium_payment_id: razorpay_payment_id || attrs.premium_payment_id || null,
+        premium_plan: plan || attrs.premium_plan || null,
+        premium_amount: amount != null ? Number(amount) : (attrs.premium_amount ?? null),
+      },
+    });
+
+    res.json({ success: true, account });
+  } catch (err) { next(err); }
+});
+
+// Admin: confirm a payment and activate premium. Falls back to the plan/amount/
+// payment id captured when the request was made, so the admin can activate with
+// just an account_id. Also clears the pending flag.
 router.post('/activate-premium', async (req, res, next) => {
   try {
     const { account_id, razorpay_payment_id, plan, amount } = req.body;
@@ -185,10 +217,30 @@ router.post('/activate-premium', async (req, res, next) => {
         ...attrs,
         is_premium: true,
         premium_since: new Date().toISOString(),
-        premium_payment_id: razorpay_payment_id || null,
-        premium_plan: plan || null,
-        premium_amount: amount ? Number(amount) : null,
+        premium_payment_id: razorpay_payment_id || attrs.premium_payment_id || null,
+        premium_plan: plan || attrs.premium_plan || null,
+        premium_amount: amount != null ? Number(amount) : (attrs.premium_amount ?? null),
+        premium_pending: false,
+        premium_requested_at: null,
       },
+    });
+
+    res.json({ success: true, account });
+  } catch (err) { next(err); }
+});
+
+// Admin: dismiss a pending premium request (e.g. payment couldn't be verified).
+router.post('/reject-premium', async (req, res, next) => {
+  try {
+    const { account_id } = req.body;
+    if (!account_id) return res.status(400).json({ message: 'account_id required' });
+
+    const account = await Account.findByPk(account_id);
+    if (!account) return res.status(404).json({ message: 'Account not found' });
+
+    const attrs = account.attributes || {};
+    await account.update({
+      attributes: { ...attrs, premium_pending: false, premium_requested_at: null },
     });
 
     res.json({ success: true, account });

@@ -20,8 +20,14 @@ const SiteConfig = () => {
   const fetchConfig = async () => {
     try {
       const response = await siteConfigAPI.get();
-      reset(response.data);
       const attrs = response.data.attributes || {};
+      // delivery_charge / free_shipping_threshold live in attributes (the JSON
+      // column that actually persists) — surface them in the form inputs.
+      reset({
+        ...response.data,
+        delivery_charge:         attrs.delivery_charge         ?? response.data.delivery_charge         ?? '',
+        free_shipping_threshold: attrs.free_shipping_threshold ?? response.data.free_shipping_threshold ?? '',
+      });
       if (attrs.delivery_normal)  setDeliveryNormal(attrs.delivery_normal);
       if (attrs.delivery_premium) setDeliveryPremium(attrs.delivery_premium);
     } catch {
@@ -34,10 +40,15 @@ const SiteConfig = () => {
   const onSubmit = async (data) => {
     setSaving(true);
     try {
+      const { delivery_charge, free_shipping_threshold, ...rest } = data;
       const payload = {
-        ...data,
+        ...rest,
         attributes: {
           ...(data.attributes || {}),
+          // Store in attributes (JSON) — the SiteConfig table has no dedicated
+          // columns for these, so top-level fields would be silently dropped.
+          delivery_charge:         Number(delivery_charge)         || 0,
+          free_shipping_threshold: Number(free_shipping_threshold) || 0,
           delivery_normal:  deliveryNormal,
           delivery_premium: deliveryPremium,
         },

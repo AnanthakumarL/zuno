@@ -118,7 +118,7 @@ function LoginRequiredModal({ onClose, productName }) {
             </div>
             <h2 className="text-white font-display text-2xl font-bold mb-2">Login to continue</h2>
             <p className="text-stone-300 text-sm leading-relaxed">
-              Sign in to access Premium pricing on{' '}
+              Sign in to continue with{' '}
               <span className="text-white font-medium">{productName}</span>
             </p>
           </div>
@@ -160,7 +160,7 @@ function LoginRequiredModal({ onClose, productName }) {
 export default function ProductDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { addItem } = useCart()
+  const { addItem, freeDeliveryThreshold } = useCart()
   const { isWishlisted, toggleWishlist } = useWishlist()
   const { isAuthenticated, isPremium, user } = useAuth()
 
@@ -221,6 +221,7 @@ export default function ProductDetail() {
   }
 
   function handleBuyNow() {
+    if (!isAuthenticated) { setShowLoginModal(true); return }
     addItem({ ...product, price: activePrice }, qty)
     navigate('/checkout')
   }
@@ -480,7 +481,7 @@ export default function ProductDetail() {
             {/* Perks */}
             <div className="bg-stone-50 rounded-2xl p-4 space-y-2.5 mb-6">
               {[
-                isPremium ? 'Free delivery on every order (Premium)' : 'Free delivery on orders over ₹999',
+                isPremium ? 'Free delivery on every order (Premium)' : `Free delivery on orders over ₹${freeDeliveryThreshold}`,
                 'Carefully packed — ships within 1–2 days',
                 isPremium ? 'Easy 15-day returns & replacements (Premium)' : 'Easy 5-day returns & replacements',
               ].map(perk => (
