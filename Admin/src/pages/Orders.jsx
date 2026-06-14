@@ -3,9 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { ordersAPI, productsAPI } from '../services/api';
-import { Plus, Edit2, Eye, X, Package, Trash2, Search, Filter, ChevronDown } from 'lucide-react';
+import { Plus, Edit2, Eye, X, Package, Trash2, Search, Filter, ChevronDown, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
+
+// A payment is confirmed once it's marked paid (or the order is delivered).
+const isOrderPaid = (order) =>
+  String(order?.payment_status || '').toLowerCase() === 'paid' ||
+  String(order?.status || '').toLowerCase() === 'delivered';
 
 const Orders = () => {
   const navigate = useNavigate();
@@ -65,6 +70,7 @@ const Orders = () => {
         shipping_address: order.shipping_address,
         billing_address: order.billing_address,
         status: order.status,
+        payment_status: order.payment_status || 'unpaid',
         delivery_date: order.delivery_date || '',
         delivery_time: order.delivery_time || '',
         scooper_count: order.scooper_count || 0,
@@ -80,6 +86,7 @@ const Orders = () => {
         shipping_address: '',
         billing_address: '',
         status: 'pending',
+        payment_status: 'unpaid',
         delivery_date: '',
         delivery_time: '',
         scooper_count: 0,
@@ -169,6 +176,19 @@ const Orders = () => {
       fetchData();
     } catch (error) {
       toast.error('Failed to save order');
+      console.error(error);
+    }
+  };
+
+  // Confirm payment with a minimal update — avoids the totals recalculation that
+  // the full edit form does, so customer order amounts stay intact.
+  const markOrderPaid = async (order) => {
+    try {
+      await ordersAPI.update(order.id, { payment_status: 'paid' });
+      toast.success('Payment marked as confirmed');
+      fetchData();
+    } catch (error) {
+      toast.error('Failed to update payment status');
       console.error(error);
     }
   };
@@ -357,21 +377,36 @@ const Orders = () => {
                       </span>
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => navigate(`/orders/${order.id || order._id}`)}
-                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="View Details"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => openModal(order)}
-                          className="p-1.5 text-violet-600 hover:bg-violet-50 rounded-lg transition-colors"
-                          title="Edit Status"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
+                      <div className="flex items-center justify-end gap-2">
+                        {isOrderPaid(order) ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700" title="Payment confirmed">
+                            <CheckCircle2 className="w-4 h-4" /> Paid
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => markOrderPaid(order)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-colors"
+                            title="Confirm payment for this order"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Mark Paid
+                          </button>
+                        )}
+                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => navigate(`/orders/${order.id || order._id}`)}
+                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="View Details"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => openModal(order)}
+                            className="p-1.5 text-violet-600 hover:bg-violet-50 rounded-lg transition-colors"
+                            title="Edit Status"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     </td>
                   </motion.tr>
@@ -452,6 +487,13 @@ const Orders = () => {
                           <option value="shipped">Shipped</option>
                           <option value="delivered">Delivered</option>
                           <option value="cancelled">Cancelled</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="label">Payment Status</label>
+                        <select {...register('payment_status')} className="input-field">
+                          <option value="unpaid">Pending</option>
+                          <option value="paid">Confirmed</option>
                         </select>
                       </div>
                       <div className="col-span-2">

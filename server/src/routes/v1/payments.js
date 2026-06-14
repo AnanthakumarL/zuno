@@ -90,7 +90,8 @@ router.post('/verify', async (req, res, next) => {
       .digest('hex');
     if (expected !== razorpay_signature)
       return res.status(400).json({ verified: false, message: 'Invalid signature' });
-    if (order_id) await Order.update({ status: 'processing' }, { where: { id: order_id } });
+    // A valid signature means the payment is confirmed — mark it paid.
+    if (order_id) await Order.update({ status: 'processing', payment_status: 'paid' }, { where: { id: order_id } });
     res.json({ verified: true });
   } catch (err) { next(err); }
 });
@@ -135,7 +136,11 @@ router.get('/qr-status/:order_id', async (req, res, next) => {
     const rp = getRazorpay();
     const qr = await rp.qrCode.fetch(notes.razorpay_qr_id);
     const paid = (qr.payments_amount_received ?? 0) > 0;
-    if (paid && order.status === 'pending') await order.update({ status: 'processing' });
+    if (paid) {
+      const patch = { payment_status: 'paid' };
+      if (order.status === 'pending') patch.status = 'processing';
+      await order.update(patch);
+    }
     res.json({ paid });
   } catch (err) { next(err); }
 });
@@ -265,7 +270,12 @@ router.post('/webhook', async (req, res, next) => {
       const rzpOrderId = req.body.payload?.payment?.entity?.order_id;
       if (rzpOrderId) {
         const order = await Order.findOne({ where: { notes: { [Op.like]: `%${rzpOrderId}%` } } });
-        if (order && order.status === 'pending') await order.update({ status: 'processing' });
+        if (order) {
+          // payment.captured ⇒ funds received ⇒ payment confirmed.
+          const patch = { payment_status: 'paid' };
+          if (order.status === 'pending') patch.status = 'processing';
+          await order.update(patch);
+        }
       }
     }
     res.json({ status: 'ok' });

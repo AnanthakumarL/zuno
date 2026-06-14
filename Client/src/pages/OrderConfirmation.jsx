@@ -34,6 +34,7 @@ export default function OrderConfirmation() {
   const displayId = order?.order_number || (orderId ? `AMD${orderId.slice(-8).toUpperCase()}` : 'AMD000000')
   const deliveryDate = order?.delivery_date ? formatDate(order.delivery_date) : null
   const deliveryTime = order?.delivery_time || null
+  const paymentConfirmed = String(order?.payment_status || '').toLowerCase() === 'paid' || order?.status === 'delivered'
 
   const trackerSteps = [
     { icon: CheckCircle2, label: 'Order Confirmed', time: 'Just now', done: true },
@@ -91,6 +92,25 @@ export default function OrderConfirmation() {
           <p className="text-olive-400 text-sm mb-4">
             Order ID: <span className="font-bold text-olive-700">#{displayId}</span>
           </p>
+
+          {/* Payment status */}
+          {order && (
+            <div className="mb-6">
+              <span className={`inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-semibold border ${
+                paymentConfirmed
+                  ? 'bg-green-50 text-green-700 border-green-200'
+                  : 'bg-amber-50 text-amber-700 border-amber-200'
+              }`}>
+                {paymentConfirmed ? <CheckCircle2 size={15} /> : <Clock size={15} />}
+                {paymentConfirmed ? 'Payment Confirmed' : 'Payment Pending'}
+              </span>
+              {!paymentConfirmed && (
+                <p className="text-xs text-amber-600 mt-2">
+                  Your payment usually takes about 2–3 hours to confirm. We'll update your order once it's done.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Delivery schedule highlight */}
           {(deliveryDate || deliveryTime) && (

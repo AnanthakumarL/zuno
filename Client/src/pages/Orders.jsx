@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Package, ChevronDown, ChevronUp, Calendar, Clock,
-  MapPin, ShoppingBag, ArrowRight, RefreshCw, Search, Phone,
+  MapPin, ShoppingBag, ArrowRight, RefreshCw, Search, Phone, CheckCircle2,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { fallbackImage } from '../services/realtimeCatalog'
@@ -32,9 +32,20 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+// A payment counts as confirmed once it's marked paid (or the order is delivered).
+// Anything else is still pending verification.
+function paymentInfo(order) {
+  const status = String(order.status || '').toLowerCase()
+  const paid = String(order.payment_status || '').toLowerCase() === 'paid' || status === 'delivered'
+  return paid
+    ? { paid: true,  label: 'Payment Confirmed', cls: 'bg-green-50 text-green-700 border-green-200' }
+    : { paid: false, label: 'Payment Pending',   cls: 'bg-amber-50 text-amber-700 border-amber-200' }
+}
+
 function OrderCard({ order }) {
   const [expanded, setExpanded] = useState(false)
   const status = STATUS_STYLES[order.status] || STATUS_STYLES.pending
+  const pay = paymentInfo(order)
   const items = Array.isArray(order.items) ? order.items : []
 
   return (
@@ -60,6 +71,10 @@ function OrderCard({ order }) {
             </span>
             <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${status.cls}`}>
               {status.label}
+            </span>
+            <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border ${pay.cls}`}>
+              {pay.paid ? <CheckCircle2 size={11} /> : <Clock size={11} />}
+              {pay.label}
             </span>
           </div>
           <p className="text-xs text-stone-400 mt-0.5">
@@ -87,6 +102,16 @@ function OrderCard({ order }) {
             className="overflow-hidden"
           >
             <div className="px-5 pb-5 border-t border-stone-100 pt-4 space-y-4">
+
+              {/* Payment pending note */}
+              {!pay.paid && (
+                <div className="flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-xl px-4 py-2.5">
+                  <Clock size={13} className="text-amber-500 mt-0.5 shrink-0" />
+                  <p className="text-xs text-amber-700 leading-relaxed">
+                    Payment pending — it usually takes about <span className="font-semibold">2–3 hours</span> to confirm your payment.
+                  </p>
+                </div>
+              )}
 
               {/* Items list */}
               <div className="space-y-2">
