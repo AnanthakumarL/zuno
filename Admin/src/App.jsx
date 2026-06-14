@@ -17,6 +17,7 @@ import Applications from './pages/Applications';
 import ApplicationDetails from './pages/ApplicationDetails';
 import Users from './pages/Users';
 import Subscriptions from './pages/Subscriptions';
+import WhatsApp from './pages/WhatsApp';
 
 const ADMIN_USER_KEY = 'admin_user';
 
@@ -65,6 +66,7 @@ function App() {
           <Route path="accounts" element={<Accounts />} />
           <Route path="users" element={<Users />} />
           <Route path="subscriptions" element={<Subscriptions />} />
+          <Route path="whatsapp" element={<WhatsApp />} />
           <Route path="careers" element={<Careers />} />
           <Route path="applications" element={<Applications />} />
           <Route path="applications/:id" element={<ApplicationDetails />} />

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { createHash } from 'crypto';
 import { Account } from '../../db/models/index.js';
+import { sendOtp, isConnected } from '../../services/whatsapp.js';
 
 function hashPassword(pw) {
   return createHash('sha256').update(pw).digest('hex');
@@ -14,6 +15,21 @@ function generateOtp() {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
+// Deliver an OTP to a phone identifier over WhatsApp. Returns how it went so the
+// caller can decide whether to expose the code (demo fallback) in the response.
+async function deliverOtp(identifier, otp) {
+  // Email identifiers aren't delivered over WhatsApp.
+  if (!identifier || identifier.includes('@')) return { sent: false, channel: 'none' };
+  const digits = String(identifier).replace(/\D/g, '');
+  if (!isConnected()) return { sent: false, channel: 'none' };
+  try {
+    await sendOtp(digits, otp);
+    return { sent: true, channel: 'whatsapp' };
+  } catch {
+    return { sent: false, channel: 'none' };
+  }
+}
+
 router.post('/signup/request-otp', async (req, res, next) => {
   try {
     const { email, phone, name } = req.body;
@@ -21,7 +37,8 @@ router.post('/signup/request-otp', async (req, res, next) => {
     if (!identifier) return res.status(400).json({ message: 'email or phone required' });
     const otp = generateOtp();
     otpStore.set(identifier, { otp, name, expires: Date.now() + 10 * 60 * 1000 });
-    res.json({ message: 'OTP sent', otp });
+    const delivery = await deliverOtp(identifier, otp);
+    res.json({ message: 'OTP sent', channel: delivery.channel, ...(delivery.sent ? {} : { otp }) });
   } catch (err) { next(err); }
 });
 
@@ -71,7 +88,8 @@ router.post('/otp/request', async (req, res, next) => {
     if (!identifier) return res.status(400).json({ message: 'identifier required' });
     const otp = generateOtp();
     otpStore.set(identifier, { otp, expires: Date.now() + 10 * 60 * 1000 });
-    res.json({ message: 'OTP sent', otp });
+    const delivery = await deliverOtp(identifier, otp);
+    res.json({ message: 'OTP sent', channel: delivery.channel, ...(delivery.sent ? {} : { otp }) });
   } catch (err) { next(err); }
 });
 

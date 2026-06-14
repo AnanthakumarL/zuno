@@ -10,6 +10,7 @@ import {
     Factory,
     Truck,
     Crown,
+    MessageCircle,
     LogOut,
     ChevronLeft,
     ChevronRight,
@@ -29,6 +30,7 @@ const menuItems = [
     { icon: Users,           label: 'Accounts',      path: '/accounts' },
     { icon: UserCircle,      label: 'Users',         path: '/users' },
     { icon: Crown,           label: 'Subscriptions', path: '/subscriptions' },
+    { icon: MessageCircle,   label: 'WhatsApp OTP',  path: '/whatsapp' },
     { icon: Briefcase,       label: 'Careers',       path: '/careers' },
     { icon: Settings,        label: 'Site Config',   path: '/site-config' },
 ];

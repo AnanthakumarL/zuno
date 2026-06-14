@@ -76,8 +76,13 @@ export default function Signup() {
         throw new Error(data.message || 'Failed to send OTP')
       }
 
-      setSentOtp(data.otp) // In production, this would be sent via email/SMS
-      toast.success(`OTP sent to +91${formData.phone}! (Demo: ${data.otp})`)
+      setSentOtp(data.otp || '')
+      if (data.otp) {
+        // WhatsApp not connected on the server — demo fallback shows the code.
+        toast.success(`OTP sent! (Demo: ${data.otp})`)
+      } else {
+        toast.success(`OTP sent to your WhatsApp +91${formData.phone}`)
+      }
       setStep(2)
     } catch (error) {
       toast.error(error.message || 'Failed to send OTP')
@@ -289,7 +294,7 @@ export default function Signup() {
                   <CheckCircle className="text-olive-700" size={32} />
                 </div>
                 <p className="text-stone-600">
-                  We sent a 6-digit code to{' '}
+                  We sent a 6-digit code {sentOtp ? '' : 'on WhatsApp '}to{' '}
                   <span className="font-medium text-stone-900">
                     +91 {formData.phone}
                   </span>

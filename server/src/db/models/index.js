@@ -12,10 +12,11 @@ import DeliveryUser from './DeliveryUser.js';
 import SiteConfig from './SiteConfig.js';
 import DeliveryAddress from './DeliveryAddress.js';
 import Cart from './Cart.js';
+import WhatsappAuth from './WhatsappAuth.js';
 
 export {
   Section, Category, Product, Order, Account,
   Job, Application, ProductionManagement, DeliveryManagement,
   ProductionUser, DeliveryUser, SiteConfig,
-  DeliveryAddress, Cart,
+  DeliveryAddress, Cart, WhatsappAuth,
 };

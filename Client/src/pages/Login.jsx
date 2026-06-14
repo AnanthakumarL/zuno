@@ -41,8 +41,13 @@ export default function Login() {
         throw new Error(data.message || 'Failed to send OTP')
       }
 
-      setSentOtp(data.otp)
-      toast.success(`OTP sent to +91${phone}! (Demo: ${data.otp})`)
+      setSentOtp(data.otp || '')
+      if (data.otp) {
+        // WhatsApp not connected on the server — demo fallback shows the code.
+        toast.success(`OTP sent! (Demo: ${data.otp})`)
+      } else {
+        toast.success(`OTP sent to your WhatsApp +91${phone}`)
+      }
       setStep(2)
     } catch (error) {
       toast.error(error.message || 'Failed to send OTP')
@@ -154,7 +159,7 @@ export default function Login() {
                   <CheckCircle className="text-olive-700" size={32} />
                 </div>
                 <p className="text-stone-600">
-                  We sent a 6-digit code to{' '}
+                  We sent a 6-digit code {sentOtp ? '' : 'on WhatsApp '}to{' '}
                   <span className="font-medium text-stone-900">+91 {phone}</span>
                 </p>
                 {sentOtp && (

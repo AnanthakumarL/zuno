@@ -32,6 +32,8 @@ import siteConfigRouter from './routes/v1/siteConfig.js';
 import addressesRouter from './routes/v1/addresses.js';
 import cartRouter from './routes/v1/cart.js';
 import subscriptionsRouter from './routes/v1/subscriptions.js';
+import whatsappRouter from './routes/v1/whatsapp.js';
+import { initWhatsApp } from './services/whatsapp.js';
 
 const app = express();
 
@@ -79,6 +81,7 @@ app.use('/api/v1/site-config', siteConfigRouter);
 app.use('/api/v1/addresses', addressesRouter);
 app.use('/api/v1/cart', cartRouter);
 app.use('/api/v1/subscriptions', subscriptionsRouter);
+app.use('/api/v1/whatsapp', whatsappRouter);
 
 app.use(errorHandler);
 
@@ -107,6 +110,8 @@ async function start() {
   try {
     await connectDB();
     console.log('Database ready.');
+    // Reconnect an existing WhatsApp link (best-effort; never blocks startup).
+    initWhatsApp().catch((e) => console.warn('[WhatsApp] init failed:', e?.message));
   } catch (err) {
     console.error('DB connection error (app still running):', err.message);
   }
