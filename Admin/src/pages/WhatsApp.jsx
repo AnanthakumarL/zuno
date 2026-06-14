@@ -15,8 +15,12 @@ const COUNTRY_CODES = [
   { code: '44',  label: 'UK (+44)' },
   { code: '971', label: 'UAE (+971)' },
   { code: '966', label: 'Saudi Arabia (+966)' },
+  { code: '63',  label: 'Philippines (+63)' },
   { code: '65',  label: 'Singapore (+65)' },
   { code: '60',  label: 'Malaysia (+60)' },
+  { code: '62',  label: 'Indonesia (+62)' },
+  { code: '66',  label: 'Thailand (+66)' },
+  { code: '84',  label: 'Vietnam (+84)' },
   { code: '61',  label: 'Australia (+61)' },
   { code: '49',  label: 'Germany (+49)' },
   { code: '33',  label: 'France (+33)' },
@@ -74,7 +78,9 @@ export default function WhatsAppPage() {
   const available = status?.available !== false;
 
   const generateCode = async () => {
+    const dial = cc.replace(/\D/g, '');
     const digits = number.replace(/\D/g, '');
+    if (!dial) { toast.error('Enter the country code (e.g. 63)'); return; }
     if (digits.length < 6) { toast.error('Enter a valid WhatsApp number'); return; }
     setGenerating(true);
     setCode('');
@@ -82,7 +88,7 @@ export default function WhatsAppPage() {
       const res = await fetch(`${API_BASE_URL}/whatsapp/connect`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: cc + digits }),
+        body: JSON.stringify({ phone: dial + digits }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to generate code');
@@ -208,9 +214,21 @@ export default function WhatsAppPage() {
           <div className="grid grid-cols-1 sm:grid-cols-[200px,1fr,auto] gap-3 items-end">
             <div>
               <label className="block text-xs font-semibold text-dark-600 mb-1.5 uppercase tracking-wide">Country code</label>
-              <select value={cc} onChange={(e) => setCc(e.target.value)} className="input-field">
-                {COUNTRY_CODES.map((c) => <option key={c.code} value={c.code}>{c.label}</option>)}
-              </select>
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-2.5 rounded-lg bg-dark-50 border border-dark-200 text-dark-600 font-mono text-sm">+</span>
+                <input
+                  list="cc-options"
+                  value={cc}
+                  onChange={(e) => setCc(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  placeholder="63"
+                  inputMode="numeric"
+                  className="input-field flex-1"
+                />
+                <datalist id="cc-options">
+                  {COUNTRY_CODES.map((c) => <option key={c.code} value={c.code}>{c.label}</option>)}
+                </datalist>
+              </div>
+              <p className="text-xs text-dark-400 mt-1">Type any country code or pick from the list.</p>
             </div>
             <div>
               <label className="block text-xs font-semibold text-dark-600 mb-1.5 uppercase tracking-wide">WhatsApp number</label>
