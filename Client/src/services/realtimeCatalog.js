@@ -79,7 +79,7 @@ function normalizeProduct(product, categoryById) {
 export async function fetchRealtimeCatalog({
   search = '',
   categoryId = 'all',
-  pageSize = 100,
+  pageSize = 300,
 } = {}) {
   const [categoriesResult, productsResult] = await Promise.allSettled([
     api.get('/categories', { params: { page: 1, page_size: pageSize } }),

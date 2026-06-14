@@ -30,6 +30,6 @@ export const config = {
 
   pagination: {
     defaultPageSize: parseInt(process.env.DEFAULT_PAGE_SIZE || '20', 10),
-    maxPageSize: parseInt(process.env.MAX_PAGE_SIZE || '100', 10),
+    maxPageSize: parseInt(process.env.MAX_PAGE_SIZE || '500', 10),
   },
 };
