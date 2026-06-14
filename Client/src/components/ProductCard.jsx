@@ -34,11 +34,6 @@ function ProductCard({ product }) {
           {product.new && (
             <span className="badge bg-stone-900 text-white">New</span>
           )}
-          {product.originalPrice && (
-            <span className="badge bg-rose-500 text-white">
-              {Math.round((1 - product.price / product.originalPrice) * 100)}% off
-            </span>
-          )}
         </div>
 
         {/* Wishlist */}
